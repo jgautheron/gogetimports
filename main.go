@@ -9,30 +9,29 @@ import (
 	"go/token"
 	"log"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
 
-const usage = `gogetimports: get a json-formatted list of imports
+const usageDoc = `gogetimports: get a JSON-formatted list of imports
 
 Usage:
 
-  gogetimports -path <directory>
+  gogetimports ARGS <directory>
 
 Flags:
 
-  -path                path to be scanned for imports
   -only-third-parties  return only third party imports
-
 `
 
 var (
-	flagPath         = flag.String("path", "./", "path to be scanned for imports")
 	flagThirdParties = flag.Bool("only-third-parties", false, "return only third party imports")
 
 	// imports contains the list of import path.
 	// filename:[]import path
-	imports = map[string][]string{}
+	imports    = map[string][]string{}
+	sourcePath = ""
 )
 
 func main() {
@@ -42,21 +41,51 @@ func main() {
 	flag.Parse()
 	log.SetPrefix("gogetimports: ")
 
-	if flag.NFlag() == 0 {
-		flag.Usage()
-		os.Exit(1)
+	args := flag.Args()
+	if len(args) != 1 {
+		usage()
 	}
+	sourcePath = args[0]
 
 	if err := parseTree(); err != nil {
 		log.Println(err)
 		os.Exit(1)
 	}
+
+	enc := json.NewEncoder(os.Stdout)
+	enc.Encode(imports)
+}
+
+func usage() {
+	fmt.Fprintf(os.Stderr, usageDoc)
+	os.Exit(1)
 }
 
 func parseTree() error {
-	fset := token.NewFileSet()
+	pathLen := len(sourcePath)
+	// Parse recursively the given path if the recursive notation is found
+	if pathLen >= 5 && sourcePath[pathLen-3:] == "..." {
+		filepath.Walk(sourcePath[:pathLen-3], func(p string, f os.FileInfo, err error) error {
+			if err != nil {
+				log.Println(err)
+				// resume walking
+				return nil
+			}
 
-	pkgs, err := parser.ParseDir(fset, *flagPath, nil, 0)
+			if f.IsDir() {
+				parseDir(p)
+			}
+			return nil
+		})
+	} else {
+		parseDir(sourcePath)
+	}
+	return nil
+}
+
+func parseDir(dir string) error {
+	fset := token.NewFileSet()
+	pkgs, err := parser.ParseDir(fset, dir, nil, 0)
 	if err != nil {
 		return err
 	}
@@ -69,9 +98,6 @@ func parseTree() error {
 			}, f)
 		}
 	}
-
-	enc := json.NewEncoder(os.Stdout)
-	enc.Encode(imports)
 
 	return nil
 }
