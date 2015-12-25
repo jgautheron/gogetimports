@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"go/ast"
 	"go/parser"
 	"go/token"
 	"log"
@@ -85,50 +84,29 @@ func parseTree() error {
 
 func parseDir(dir string) error {
 	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, dir, nil, 0)
+	pkgs, err := parser.ParseDir(fset, dir, nil, parser.ImportsOnly)
 	if err != nil {
 		return err
 	}
 
 	for _, pkg := range pkgs {
 		for fn, f := range pkg.Files {
-			ast.Walk(&ImportVisitor{
-				packageName: pkg.Name,
-				fileName:    fn,
-			}, f)
+			if _, ok := imports[fn]; !ok {
+				imports[fn] = make([]string, 0)
+			}
+			for _, imprt := range f.Imports {
+				// Cleanup the import path
+				path := strings.Replace(imprt.Path.Value, `"`, "", 2)
+
+				if *flagThirdParties && !isThirdParty(path) {
+					continue
+				}
+				imports[fn] = append(imports[fn], path)
+			}
 		}
 	}
 
 	return nil
-}
-
-// ImportVisitor carries the package name and file name
-// for passing it to the imports map.
-type ImportVisitor struct {
-	packageName, fileName string
-}
-
-// Visit matches the ImportSpec and fills the imports map.
-func (v *ImportVisitor) Visit(node ast.Node) ast.Visitor {
-	if node != nil {
-		switch t := node.(type) {
-		case *ast.ImportSpec:
-			// Cleanup the import path
-			path := strings.Replace(t.Path.Value, `"`, "", 2)
-
-			if *flagThirdParties && !isThirdParty(path) {
-				return v
-			}
-
-			_, ok := imports[v.fileName]
-			if !ok {
-				imports[v.fileName] = make([]string, 0)
-			}
-
-			imports[v.fileName] = append(imports[v.fileName], path)
-		}
-	}
-	return v
 }
 
 // isThirdParty determines if the given import path is a third party or not.
