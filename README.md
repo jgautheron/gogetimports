@@ -23,3 +23,6 @@ Examples:
   gogetimports ./...
   gogetimports -only-third-parties $GOPATH/src/github.com/cockroachdb/cockroach
 ```
+
+### License
+MIT
