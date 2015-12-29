@@ -2,6 +2,8 @@
 
 Get a JSON-formatted map of imports per file.
 
+This tool will be useful if you'd like to get a bird view of the packages used by your application, or get statistics about third party libraries.
+
 ### Get Started
 
     $ go get github.com/jgautheron/gogetimports
