@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-const usageDoc = `gogetimports: get a JSON-formatted list of imports
+const usageDoc = `gogetimports: get a JSON-formatted map of imports per file
 
 Usage:
 
@@ -22,13 +22,22 @@ Usage:
 Flags:
 
   -only-third-parties  return only third party imports
+  -list                return a list instead of a map
+  -ignore              ignore imports matching the given regular expression
+
+Examples:
+
+  gogetimports ./...
+  gogetimports -only-third-parties $GOPATH/src/github.com/cockroachdb/cockroach
 `
 
 var (
 	flagThirdParties = flag.Bool("only-third-parties", false, "return only third party imports")
+	flagList         = flag.Bool("list", false, "return a list instead of a map")
+	flagIgnore       = flag.String("ignore", "", "ignore imports matching the given regular expression")
 
 	// imports contains the list of import path.
-	// filename:[]import path
+	// filename[]import path
 	imports    = map[string][]string{}
 	sourcePath = ""
 )
@@ -48,8 +57,34 @@ func main() {
 		os.Exit(1)
 	}
 
+	removeDuplicates := func(list []string) []string {
+		encountered, result := map[string]bool{}, []string{}
+
+		for el := range list {
+			if _, ok := encountered[list[el]]; ok {
+				continue
+			}
+
+			encountered[list[el]] = true
+			result = append(result, list[el])
+		}
+
+		return result
+	}
+
+	var output interface{}
+	if *flagList {
+		lst := []string{}
+		for _, mp := range imports {
+			lst = append(lst, mp...)
+		}
+		output = removeDuplicates(lst)
+	} else {
+		output = imports
+	}
+
 	enc := json.NewEncoder(os.Stdout)
-	enc.Encode(imports)
+	enc.Encode(output)
 }
 
 func usage() {
@@ -98,6 +133,17 @@ func parseDir(dir string) error {
 				if *flagThirdParties && !isThirdParty(path) {
 					continue
 				}
+
+				if len(*flagIgnore) != 0 {
+					match, err := regexp.MatchString(*flagIgnore, path)
+					if err != nil {
+						return err
+					}
+					if match {
+						continue
+					}
+				}
+
 				imports[fn] = append(imports[fn], path)
 			}
 		}
