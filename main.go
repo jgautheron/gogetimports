@@ -34,9 +34,6 @@ var (
 )
 
 func main() {
-	flag.Usage = func() {
-		fmt.Fprint(os.Stderr, usage)
-	}
 	flag.Parse()
 	log.SetPrefix("gogetimports: ")
 
