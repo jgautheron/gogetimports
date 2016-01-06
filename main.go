@@ -24,17 +24,21 @@ Flags:
   -only-third-parties  return only third party imports
   -list                return a list instead of a map
   -ignore              ignore imports matching the given regular expression
+  -pretty              output JSON with proper indentation
 
 Examples:
 
   gogetimports ./...
   gogetimports -only-third-parties $GOPATH/src/github.com/cockroachdb/cockroach
+  gogetimports -ignore "jgautheron\/gocha" -list $GOPATH/src/github.com/jgautheron/gocha/...
+  gogetimports -pretty .
 `
 
 var (
 	flagThirdParties = flag.Bool("only-third-parties", false, "return only third party imports")
 	flagList         = flag.Bool("list", false, "return a list instead of a map")
 	flagIgnore       = flag.String("ignore", "", "ignore imports matching the given regular expression")
+	flagPretty       = flag.Bool("pretty", false, "output JSON with proper indentation")
 
 	// imports contains the list of import path.
 	// filename[]import path
@@ -83,8 +87,13 @@ func main() {
 		output = imports
 	}
 
-	enc := json.NewEncoder(os.Stdout)
-	enc.Encode(output)
+	var o []byte
+	if *flagPretty {
+		o, _ = json.MarshalIndent(output, "", "  ")
+	} else {
+		o, _ = json.Marshal(output)
+	}
+	fmt.Print(string(o))
 }
 
 func usage() {
